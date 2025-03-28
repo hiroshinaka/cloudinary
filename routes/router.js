@@ -37,7 +37,7 @@ router.get('/', async (req, res) => {
 
 
 	try {
-		const users = await userCollection.find().project({first_name: 1, last_name: 1, email: 1, _id: 1}).toArray();
+		const users = await userCollection.find().project({first_name: 1, last_name: 1, email: 1, _id: 1, image_id:1}).toArray();
 
 		if (users === null) {
 			res.render('error', {message: 'Error connecting to MongoDB'});
@@ -84,56 +84,36 @@ function sleep(ms) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-router.post('/setPetPic', upload.single('image'), function(req, res, next) {
-	let image_uuid = uuid();
-	let pet_id = req.body.pet_id;
+router.post('/setUserPic', upload.single('image'), function(req, res) {
+	if (!req.file) {
+	  return res.status(400).send("Missing required parameter - file");
+	}
 	let user_id = req.body.user_id;
 	let buf64 = req.file.buffer.toString('base64');
-	stream = cloudinary.uploader.upload("data:image/octet-stream;base64," + buf64, async function(result) { 
-			try {
-				console.log(result);
-
-				console.log("userId: "+user_id);
-
-
-				// Joi validate
-				const schema = Joi.object(
-				{
-					pet_id: Joi.string().alphanum().min(24).max(24).required(),
-					user_id: Joi.string().alphanum().min(24).max(24).required()
-				});
-			
-				const validationResult = schema.validate({pet_id, user_id});
-				if (validationResult.error != null) {
-					console.log(validationResult.error);
-
-					res.render('error', {message: 'Invalid pet_id or user_id'});
-					return;
-				}				
-				const success = await petCollection.updateOne({"_id": new ObjectId(pet_id)},
-					{$set: {image_id: image_uuid}},
-					{}
-				);
-
-				if (!success) {
-					res.render('error', {message: 'Error uploading pet image to MongoDB'});
-					console.log("Error uploading pet image");
-				}
-				else {
-					res.redirect(`/showPets?id=${user_id}`);
-				}
-			}
-			catch(ex) {
-				res.render('error', {message: 'Error connecting to MongoDB'});
-				console.log("Error connecting to MongoDB");
-				console.log(ex);
-			}
-		}, 
-		{ public_id: image_uuid }
+  
+	// Upload the buffer to Cloudinary
+	cloudinary.uploader.upload(
+	  "data:image/octet-stream;base64," + buf64,
+	  async function(result) {
+		try {
+		  console.log("Cloudinary result:", result);
+		  // Store Cloudinary's actual public_id
+		  const success = await userCollection.updateOne(
+			{ _id: new ObjectId(user_id) },
+			{ $set: { image_id: result.public_id } }
+		  );
+		  if (!success) {
+			return res.render('error', { message: 'Error uploading user image' });
+		  }
+		  res.redirect("/");
+		} catch (ex) {
+		  console.error(ex);
+		  res.render('error', { message: 'Error connecting to MongoDB' });
+		}
+	  }
 	);
-	console.log(req.body);
-	console.log(req.file);
-});
+  });
+  
 
 router.get('/showPets', async (req, res) => {
 	console.log("page hit");
@@ -256,6 +236,48 @@ router.get('/deletePetImage', async (req, res) => {
 	}
 });
 
+router.get('/deleteUserImage', async (req, res) => {
+    try {
+        console.log("delete user image");
+
+        let user_id = req.query.id;
+
+        const schema = Joi.object(
+            {
+                user_id: Joi.string().alphanum().min(24).max(24).required()
+            });
+        
+        const validationResult = schema.validate({user_id});
+        
+        if (validationResult.error != null) {
+            console.log(validationResult.error);
+            res.render('error', {message: 'Invalid user_id'});
+            return;
+        }				
+
+        if (user_id) {
+            console.log("userId: "+user_id);
+            const success = await userCollection.updateOne({"_id": new ObjectId(user_id)},
+                {$set: {image_id: undefined}},
+                {}
+            );
+
+            console.log("delete User Image: ");
+            console.log(success);
+            if (!success) {
+                res.render('error', {message: 'Error connecting to MongoDB'});
+                return;
+            }
+        }
+        res.redirect(`/`);
+    }
+    catch(ex) {
+        res.render('error', {message: 'Error connecting to MongoDB'});
+        console.log("Error connecting to MongoDB");
+        console.log(ex);	
+    }
+});
+
 router.post('/addUser', async (req, res) => {
 	try {
 		console.log("form submit");
@@ -290,7 +312,8 @@ router.post('/addUser', async (req, res) => {
 				last_name: req.body.last_name,
 				email: req.body.email,
 				password_salt: password_salt.digest('hex'),
-				password_hash: password_hash.digest('hex')
+				password_hash: password_hash.digest('hex'),
+				image_id: undefined
 			}
 		);
 

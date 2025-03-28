@@ -3,9 +3,16 @@
 	<head>
 		<meta charset="utf-8"/>
 		<link rel="stylesheet" href="bulma.min.css">
+		<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/cloudinary-jquery@2.11.3/cloudinary-jquery.min.js"></script>
 		<script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"> </script>
+
 	</head>
 	<body>
+		<script type="text/javascript"> 
+			$.cloudinary.config({ cloud_name: '<%= process.env.CLOUDINARY_CLOUD_NAME %>', secure: true});
+		</script>
+	
 		<section class="section">
 			<div class="maincolumns columns is-desktop is-vcentered">
 				<div class="column is-10 is-offset-1 notification is-info is-light box container">
@@ -17,9 +24,11 @@
 						<table class="table is-bordered is-hoverable is-striped is-narrow">
 							<thead>
 							<tr>
+								<th> Profile Picture </th>
 								<th> First Name </th>
 								<th> Last Name </th>
 								<th> Email </th>
+								<th> &nbsp; </th>
 								<th> &nbsp; </th>
 								<th> &nbsp; </th>
 							</tr>
@@ -27,9 +36,50 @@
 							<% let i=0; %>
 							<% for(i=0; i < allUsers.length; i++) { %>
 							<tr>
+								<td class="profile-pic-cell">
+									<% if (allUsers[i].image_id) { %>
+										<img src="https://res.cloudinary.com/<%= process.env.CLOUDINARY_CLOUD_NAME %>/image/upload/c_fill,h_50,w_50/<%= allUsers[i].image_id %>" 
+										     class="profile-pic-img" 
+										     alt="Profile picture"/>
+									<% } else { %>
+										<form action="/setUserPic" method="post" enctype="multipart/form-data">
+											<div class="field has-addons">
+												<input type="hidden" name="user_id" value="<%= allUsers[i].user_id %>"/>
+												<div class="control">
+													<div id="user-picture-upload-<%= i %>" class="file is-info has-name is-small">
+													  <label class="file-label">
+														<input class="file-input" type="file" name="image" required/>
+														<span class="file-cta">
+															<span class="file-icon"><i class="fas fa-upload"></i></span>
+															<span class="file-label">Choose</span>
+														</span>
+														<span class="file-name">No file</span>
+													  </label>
+													</div>
+												</div>
+												<div class="control">
+													<button type="submit" class="button is-link is-small">
+														<span class="icon is-small">
+															<i class="fas fa-check"></i>
+														</span>
+													</button>
+												</div>
+											</div>
+										</form>
+									<% } %>
+								</td>
 								<td><%= allUsers[i].first_name %></td>
 								<td><%= allUsers[i].last_name %></td>
 								<td><%= allUsers[i].email %></td>
+								<td>
+									<% if (allUsers[i].image_id) { %>
+										<a href="/deleteUserImage?id=<%= allUsers[i].user_id %>">
+											<span class="icon is-small">
+												<i class="fas fa-eraser"></i>
+											</span>
+										</a>
+									<% } %>
+								</td>
 								<td><a href="/deleteUser?id=<%= allUsers[i].user_id %>">
 									<span class="icon is-small">
 										<i class="fas fa-user-times"></i>
@@ -43,7 +93,7 @@
 							</tr>
 							<% } %>
 							<tfoot>
-								<tr> <td colspan="5">
+								<tr> <td colspan="7">
 								There are <%= i %> users.
 								</td> </tr>
 							</tfoot>
@@ -91,5 +141,18 @@
 				</div>
 			</div>
 		</section>
+		<script>
+		  // Add file name display for all user picture upload inputs
+		  document.querySelectorAll('.file-input').forEach(input => {
+			input.onchange = () => {
+			  if (input.files.length > 0) {
+				const fileName = input.closest('.file').querySelector('.file-name');
+				if (fileName) {
+				  fileName.textContent = input.files[0].name;
+				}
+			  }
+			}
+		  });
+		</script>
 	</body>
 </html>
